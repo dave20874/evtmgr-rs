@@ -1,37 +1,29 @@
 mod event_mgr;
 
-use event_mgr::{EventChannel, Event};
 
-struct Event1 {
+use event_mgr::{EventMgr, EventChannel};
+
+struct EventData {
     data1: u32,
 }
 
-impl Event for Event1 {
-    // TODO
-    fn foo(&self) {
-        // ok
-    }
-}
-
-struct Event2 {
-    data2: u32,
-}
-
-impl Event for Event2 {
-    // TODO
-    fn foo(&self) {
-        // ok
-    }
-}
-
-
-
 fn main() {
-    let ch1 = EventChannel::<Event1>::open();
+    // Create an event manager
+    let mgr = EventMgr::new();
 
-    let e = Event1 {data1: 69};
+    // Get a reference to a channel
+    // (Creates it and registers with event manager if the first time.)
+    let for_pub = EventChannel::<EventData>::get(&mgr, "ch1");
 
-    ch1.raise(e);
+    // Get a second reference to the channel
+    let for_sub = EventChannel::<EventData>::get(&mgr, "ch1");
 
-    println!("I think I raised an event.");
+    // Register a listener
+    for_sub.subscribe();
+
+    // Publish a message
+    let e = EventData {data1: 69};
+    for_pub.publish(e);
+
+    println!("Did it work?");
 }
