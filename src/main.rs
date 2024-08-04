@@ -1,29 +1,29 @@
 mod event_mgr;
 
 
+use std::{fmt::Display, sync::Mutex};
+
 use event_mgr::{EventMgr, EventChannel};
 
+#[derive(Debug)]
 struct EventData {
     data1: u32,
 }
+
+static mut ch1: Mutex<EventChannel<EventData>> = Mutex::new(EventChannel::<EventData>::new());
 
 fn main() {
     // Create an event manager
     let mgr = EventMgr::new();
 
-    // Get a reference to a channel
-    // (Creates it and registers with event manager if the first time.)
-    let for_pub = EventChannel::<EventData>::get(&mgr, "ch1");
-
-    // Get a second reference to the channel
-    let for_sub = EventChannel::<EventData>::get(&mgr, "ch1");
-
     // Register a listener
-    for_sub.subscribe();
+    ch1.subscribe(|| {println!("In the callback.");});
 
     // Publish a message
     let e = EventData {data1: 69};
-    for_pub.publish(e);
+    ch1.publish(e);
+
+    mgr.poll();
 
     println!("Did it work?");
 }

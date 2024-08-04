@@ -4,13 +4,21 @@
 // TODO : Document how event sources register event channels.
 // TODO : Document how event handlers register callbacks for events
 
-use std::{marker::PhantomData, sync::Arc};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
+
+
+trait EventChannelIf {
+// TODO
+}
+
+// TODO-DW : Eliminate 'static lifetime on channels managed by EventMgr.
 
 // EventMgr
 // The singleton manager of events manages the event queue.
-pub struct EventMgr 
+pub struct EventMgr
 {
     events_processed: usize,
+    named_channels: Vec<&'static dyn EventChannelIf>,
 }
 
 impl EventMgr
@@ -18,36 +26,41 @@ impl EventMgr
     // private function to create the singleton event manager in lazy_static, above.
     pub fn new() -> EventMgr {
         EventMgr {
-            events_processed: 0 
+            events_processed: 0,
+            named_channels: Vec::new(),
         }
     }
+
+    fn register_channel(&mut self, channel: &'static dyn EventChannelIf)
+    {
+        self.named_channels.push(channel);
+    }
 }
+
+
 
 // EventChannel
 // An EventChannel provides operations on specific types of Events.
 // Its static members represent the class of events, E.
-pub struct EventChannel<T>
+pub struct EventChannel<'a, T>
+where T: Debug
 {
-    _channel_id: String,
+    _channel_id: usize,
+    handler: &'a dyn Fn(T),
     phantom: PhantomData<T>,
 }
 
-
-impl<T> EventChannel<T>
+impl<'a, T> EventChannel<'a, T>
+    where T: Debug
 {
-    pub fn get(_mgr: &EventMgr, id: &str) -> Arc<EventChannel<T>> {
-        // Check whether this channel id is already registered with the event manager
-        // if not, create the channel and register it
-        // return the channel reference reference.
-
-        // TODO : Handle registration with event manager
-        println!("TODO: Implement channel registration with manager.");
-        // For now, just create one and return the reference so we can compile
-        Arc::new(EventChannel::<T> {_channel_id: id.to_string(), phantom: PhantomData } )
+    static mut pub fn new() -> EventChannel<'a, T>
+    {
+        EventChannel {_channel_id: 0, handler: &(|data| {println!("Ignoring data: {:?}", data)}), phantom: PhantomData }
     }
 
-    pub fn subscribe(&self) {
-        println!("TODO: Implement subscribe.");
+    pub fn subscribe(&mut self, handler: &'a dyn Fn(T)) {
+        self.handler = handler;
+        println!("Subscribe set handler.");
     }
 
     pub fn publish(&self, _e: T) {
