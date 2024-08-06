@@ -4,36 +4,46 @@
 // TODO : Document how event sources register event channels.
 // TODO : Document how event handlers register callbacks for events
 
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
-
-
-trait EventChannelIf {
-// TODO
-}
+use std::{collections::VecDeque, fmt::Debug, sync::{Arc, Mutex}};
 
 // TODO-DW : Eliminate 'static lifetime on channels managed by EventMgr.
 
 // EventMgr
 // The singleton manager of events manages the event queue.
-pub struct EventMgr
+pub struct EventMgr<'a>
 {
-    events_processed: usize,
-    named_channels: Vec<&'static dyn EventChannelIf>,
+    event_queue: Arc<Mutex<VecDeque<&'a dyn EventChannelIf>>>,
 }
 
-impl EventMgr
+pub trait EventChannelIf{
+    fn service_event(&self);
+}
+
+impl<'a> EventMgr<'a>
 {
     // private function to create the singleton event manager in lazy_static, above.
-    pub fn new() -> EventMgr {
+    pub fn new() -> EventMgr<'a> {
         EventMgr {
-            events_processed: 0,
-            named_channels: Vec::new(),
+            event_queue: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
-    fn register_channel(&mut self, channel: &'static dyn EventChannelIf)
+    pub fn queue(&'a self, callback: &'a dyn EventChannelIf)
     {
-        self.named_channels.push(channel);
+        let mut event_queue = self.event_queue.lock().unwrap();
+
+        event_queue.push_back(callback);
+    }
+
+    pub fn poll(&self)
+    {
+        let mut event_queue = self.event_queue.lock().unwrap();
+
+        while !event_queue.is_empty() {
+            let channel = event_queue.pop_front().unwrap();
+            channel.service_event();
+        }
+        println!("Polling done");
     }
 }
 
@@ -42,28 +52,56 @@ impl EventMgr
 // EventChannel
 // An EventChannel provides operations on specific types of Events.
 // Its static members represent the class of events, E.
-pub struct EventChannel<'a, T>
-where T: Debug
+
+// TODO: Figure out how to declare F as &dyn with a lifetime.
+
+pub struct EventChannel<'a, T, F>
+where T: Debug, F: Fn(&T)
 {
-    _channel_id: usize,
-    handler: &'a dyn Fn(T),
-    phantom: PhantomData<T>,
+    mgr: &'a EventMgr<'a>,
+    handler: Option<F>,
+    event_queue: Arc<Mutex<VecDeque<T>>>,
 }
 
-impl<'a, T> EventChannel<'a, T>
-    where T: Debug
+impl<'a, T, F> EventChannel<'a, T, F>
+    where T: Debug, F: Fn(&T)
 {
-    static mut pub fn new() -> EventChannel<'a, T>
+    pub fn new(mgr: &'a EventMgr<'a>) -> EventChannel<'a, T, F>
     {
-        EventChannel {_channel_id: 0, handler: &(|data| {println!("Ignoring data: {:?}", data)}), phantom: PhantomData }
+        let ec = EventChannel {mgr: mgr, handler: None, event_queue: Arc::new(Mutex::new(VecDeque::new()))};
+        ec
     }
 
-    pub fn subscribe(&mut self, handler: &'a dyn Fn(T)) {
-        self.handler = handler;
+    pub fn subscribe(&mut self, handler: F) 
+    {
+        self.handler = Some(handler);
         println!("Subscribe set handler.");
     }
 
-    pub fn publish(&self, _e: T) {
+    pub fn publish(&'a self, e: T) {
         println!("TODO: Publish an event.");
+
+        let mut event_queue = self.event_queue.lock().unwrap();
+
+        // Add event to the queue for this channel
+        event_queue.push_back(e);
+
+        // tell manager to call us back.
+        self.mgr.queue(self);
+    }
+
+}
+
+impl<'a, T, F> EventChannelIf for EventChannel<'a, T, F>
+where T: Debug, F: Fn(&T)
+{
+    fn service_event(&self) 
+    {
+        let mut event_queue = self.event_queue.lock().unwrap();
+        let data = event_queue.pop_front().unwrap();
+        match &self.handler {
+            Some(f) => { f(&data); }
+            None => { println!("No handler."); }
+        }
     }
 }

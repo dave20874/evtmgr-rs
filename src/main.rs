@@ -1,7 +1,6 @@
 mod event_mgr;
 
-
-use std::{fmt::Display, sync::Mutex};
+use std::sync::Arc;
 
 use event_mgr::{EventMgr, EventChannel};
 
@@ -10,20 +9,52 @@ struct EventData {
     data1: u32,
 }
 
-static mut ch1: Mutex<EventChannel<EventData>> = Mutex::new(EventChannel::<EventData>::new());
+struct System<'a> {
+    mgr: Arc<EventMgr<'a>>,
+    ch1: EventChannel<'a, EventData, &'a dyn Fn(&EventData)>,
+}
 
-fn main() {
-    // Create an event manager
-    let mgr = EventMgr::new();
+impl<'a> System<'a>
+{
+    pub fn new() -> Self
+    {
+        let mgr = Arc::new(EventMgr::new());
+        let mut ch1 = EventChannel::<EventData, &dyn Fn(&EventData)>::new(&mgr);
 
-    // Register a listener
-    ch1.subscribe(|| {println!("In the callback.");});
+        let mut sys = System {
+            mgr: mgr.clone(),
+            ch1: ch1,
+        };
 
-    // Publish a message
-    let e = EventData {data1: 69};
-    ch1.publish(e);
+        // Register a listener
+        sys.ch1.subscribe(&|d| { println!("In the callback: {}", d.data1); } );
 
-    mgr.poll();
+        sys
+    }
+
+    pub fn send(&self) 
+    {
+        // Publish a message
+        // let e = Box::new(EventData {data1: 69});
+        self.ch1.publish(&EventData {data1: 69});
+    }
+
+    pub fn poll(&self)
+    {
+        println!("Polling.");
+        self.mgr.poll();
+        println!("Polling done.");
+    }
+}
+
+fn main() 
+{
+    let sys = System::new();
+
+    sys.send();
+    sys.send();
+    sys.send();
+    sys.poll();
 
     println!("Did it work?");
 }
