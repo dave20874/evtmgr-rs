@@ -1,48 +1,51 @@
 mod event_mgr;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use event_mgr::{EventMgr, EventChannel};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct EventData {
     data1: u32,
 }
 
 struct System<'a> {
-    mgr: Arc<EventMgr<'a>>,
+    mgr: Arc<Mutex<EventMgr<'a>>>,
     ch1: EventChannel<'a, EventData, &'a dyn Fn(&EventData)>,
 }
+
+// TODO-DW : Add threads: one to service the even queue and a couple to generate events.
+// TODO-DW : Create an event channel to terminate the program.
 
 impl<'a> System<'a>
 {
     pub fn new() -> Self
     {
-        let mgr = Arc::new(EventMgr::new());
-        let mut ch1 = EventChannel::<EventData, &dyn Fn(&EventData)>::new(&mgr);
-
-        let mut sys = System {
-            mgr: mgr.clone(),
-            ch1: ch1,
-        };
+        let mgr = Arc::new(Mutex::new(EventMgr::new()));
+        let mut ch1 = 
+            EventChannel::<EventData, &dyn Fn(&EventData)>::new(mgr.clone());
 
         // Register a listener
-        sys.ch1.subscribe(&|d| { println!("In the callback: {}", d.data1); } );
+        ch1.subscribe(&|d| { println!("In the callback: {}", d.data1); } );
 
-        sys
+        System {
+            mgr,
+            ch1,
+        }
     }
 
-    pub fn send(&self) 
+    pub fn send(&'a self) 
     {
         // Publish a message
         // let e = Box::new(EventData {data1: 69});
-        self.ch1.publish(&EventData {data1: 69});
+        self.ch1.publish(EventData {data1: 69});
     }
 
     pub fn poll(&self)
     {
         println!("Polling.");
-        self.mgr.poll();
+        let mgr = self.mgr.lock().unwrap();
+        mgr.poll();
         println!("Polling done.");
     }
 }
@@ -54,6 +57,7 @@ fn main()
     sys.send();
     sys.send();
     sys.send();
+
     sys.poll();
 
     println!("Did it work?");

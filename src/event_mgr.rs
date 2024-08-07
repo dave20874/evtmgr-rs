@@ -4,14 +4,25 @@
 // TODO : Document how event sources register event channels.
 // TODO : Document how event handlers register callbacks for events
 
-use std::{collections::VecDeque, fmt::Debug, sync::{Arc, Mutex}};
 
-// TODO-DW : Eliminate 'static lifetime on channels managed by EventMgr.
+// TODO-DW : Test generating an event from within an event handler.
+// TODO-DW : Now that I've kind of figured out inner mutability with Mutex, review
+//           all the &'a references I created and eliminate the unnecessary ones.
+// TODO-DW : Where do I really need Arc<Mutex<>> vs just Mutex<>
+//           What is using reference counting?  The mgr itself?
+// TODO-DW : If mgr is Arc<Mutex<>> does it's event_queue need to be, too?
+
+
+use std::{collections::VecDeque, fmt::Debug, sync::{Arc, Mutex}};
 
 // EventMgr
 // The singleton manager of events manages the event queue.
 pub struct EventMgr<'a>
 {
+    // TODO-DW : Could this be lighter weight?
+    // (No need for Arc here, just Mutex?)
+    // Could another data structure remove requirement for Mutex?
+
     event_queue: Arc<Mutex<VecDeque<&'a dyn EventChannelIf>>>,
 }
 
@@ -28,7 +39,7 @@ impl<'a> EventMgr<'a>
         }
     }
 
-    pub fn queue(&'a self, callback: &'a dyn EventChannelIf)
+    pub fn queue(&self, callback: &'a dyn EventChannelIf)
     {
         let mut event_queue = self.event_queue.lock().unwrap();
 
@@ -51,25 +62,26 @@ impl<'a> EventMgr<'a>
 
 // EventChannel
 // An EventChannel provides operations on specific types of Events.
-// Its static members represent the class of events, E.
 
-// TODO: Figure out how to declare F as &dyn with a lifetime.
 
 pub struct EventChannel<'a, T, F>
 where T: Debug, F: Fn(&T)
 {
-    mgr: &'a EventMgr<'a>,
-    handler: Option<F>,
+    mgr: Arc<Mutex<EventMgr<'a>>>,
+    handler: Option<F>,                          // TODO-DW : Mutliple handlers
     event_queue: Arc<Mutex<VecDeque<T>>>,
 }
 
 impl<'a, T, F> EventChannel<'a, T, F>
     where T: Debug, F: Fn(&T)
 {
-    pub fn new(mgr: &'a EventMgr<'a>) -> EventChannel<'a, T, F>
+    pub fn new(mgr: Arc<Mutex<EventMgr<'a>>>) -> EventChannel<'a, T, F>
     {
-        let ec = EventChannel {mgr: mgr, handler: None, event_queue: Arc::new(Mutex::new(VecDeque::new()))};
-        ec
+        EventChannel {
+            mgr, 
+            handler: None, 
+            event_queue: Arc::new(Mutex::new(VecDeque::new()))
+        }
     }
 
     pub fn subscribe(&mut self, handler: F) 
@@ -79,15 +91,16 @@ impl<'a, T, F> EventChannel<'a, T, F>
     }
 
     pub fn publish(&'a self, e: T) {
-        println!("TODO: Publish an event.");
-
         let mut event_queue = self.event_queue.lock().unwrap();
+
+        // TODO-DW : Consider order of Mutex acquisition (there are two.)  Are we avoiding deadlock?
 
         // Add event to the queue for this channel
         event_queue.push_back(e);
 
         // tell manager to call us back.
-        self.mgr.queue(self);
+        let mgr = self.mgr.lock().unwrap();
+        mgr.queue(self);
     }
 
 }
