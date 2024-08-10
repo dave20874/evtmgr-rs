@@ -23,7 +23,7 @@ pub struct EventMgr<'a>
     // (No need for Arc here, just Mutex?)
     // Could another data structure remove requirement for Mutex?
 
-    event_queue: Arc<Mutex<VecDeque<&'a dyn EventChannelIf>>>,
+    event_queue: VecDeque<&'a dyn EventChannelIf>,
 }
 
 pub trait EventChannelIf{
@@ -35,23 +35,23 @@ impl<'a> EventMgr<'a>
     // private function to create the singleton event manager in lazy_static, above.
     pub fn new() -> EventMgr<'a> {
         EventMgr {
-            event_queue: Arc::new(Mutex::new(VecDeque::new())),
+            event_queue: VecDeque::new(),
         }
     }
 
-    pub fn queue(&self, callback: &'a dyn EventChannelIf)
+    pub fn queue(&mut self, callback: &'a dyn EventChannelIf)
     {
-        let mut event_queue = self.event_queue.lock().unwrap();
+        // let mut event_queue = self.event_queue.lock().unwrap();
 
-        event_queue.push_back(callback);
+        self.event_queue.push_back(callback);
     }
 
-    pub fn poll(&self)
+    pub fn poll(&mut self)
     {
-        let mut event_queue = self.event_queue.lock().unwrap();
+        // let mut event_queue = self.event_queue.lock().unwrap();
 
-        while !event_queue.is_empty() {
-            let channel = event_queue.pop_front().unwrap();
+        while !self.event_queue.is_empty() {
+            let channel = self.event_queue.pop_front().unwrap();
             channel.service_event();
         }
         println!("Polling done");
@@ -99,7 +99,7 @@ impl<'a, T, F> EventChannel<'a, T, F>
         event_queue.push_back(e);
 
         // tell manager to call us back.
-        let mgr = self.mgr.lock().unwrap();
+        let mut mgr = self.mgr.lock().unwrap();
         mgr.queue(self);
     }
 
