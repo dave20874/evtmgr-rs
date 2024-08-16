@@ -15,6 +15,13 @@
 
 use std::{collections::VecDeque, fmt::Debug, sync::{Arc, Mutex}};
 
+#[derive(PartialEq)]
+enum EventMgrState {
+    RUNNING,
+    STOPPING,
+    STOPPED,
+}
+
 // EventMgr
 // The singleton manager of events manages the event queue.
 pub struct EventMgr<'a>
@@ -24,11 +31,14 @@ pub struct EventMgr<'a>
     // Could another data structure remove requirement for Mutex?
 
     event_queue: VecDeque<&'a dyn EventChannelIf>,
+    state: EventMgrState
 }
 
 pub trait EventChannelIf{
     fn service_event(&self);
 }
+
+
 
 impl<'a> EventMgr<'a>
 {
@@ -36,6 +46,7 @@ impl<'a> EventMgr<'a>
     pub fn new() -> EventMgr<'a> {
         EventMgr {
             event_queue: VecDeque::new(),
+            state: EventMgrState::RUNNING,
         }
     }
 
@@ -43,7 +54,9 @@ impl<'a> EventMgr<'a>
     {
         // let mut event_queue = self.event_queue.lock().unwrap();
 
-        self.event_queue.push_back(callback);
+        if self.state == EventMgrState::RUNNING {
+            self.event_queue.push_back(callback);
+        }
     }
 
     pub fn poll(&mut self)
@@ -51,10 +64,22 @@ impl<'a> EventMgr<'a>
         // let mut event_queue = self.event_queue.lock().unwrap();
 
         while !self.event_queue.is_empty() {
-            let channel = self.event_queue.pop_front().unwrap();
-            channel.service_event();
+            let chan = self.event_queue.pop_front().unwrap();
+            chan.service_event();
         }
-        println!("Polling done");
+
+        if self.state == EventMgrState::STOPPING {
+            self.state = EventMgrState::STOPPED;
+        }
+    }
+
+    pub fn shutdown(&mut self)
+    {
+        self.state = EventMgrState::STOPPING;
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.state != EventMgrState::STOPPED
     }
 }
 
@@ -97,12 +122,9 @@ impl<'a, T, F> EventChannel<'a, T, F>
 
         // Add event to the queue for this channel
         event_queue.push_back(e);
-
-        // tell manager to call us back.
         let mut mgr = self.mgr.lock().unwrap();
         mgr.queue(self);
     }
-
 }
 
 impl<'a, T, F> EventChannelIf for EventChannel<'a, T, F>
@@ -118,3 +140,4 @@ where T: Debug, F: Fn(&T)
         }
     }
 }
+
