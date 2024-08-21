@@ -21,6 +21,10 @@ pub trait EventChannelIf: Sync {
     fn service_event(&self);
 }
 
+pub trait EventHandler<T> {
+    fn on_event(&self, event: &T);
+}
+
 impl EventMgr
 {
     // private function to create the singleton event manager in lazy_static, above.
@@ -72,25 +76,25 @@ static EVENT_MGR: Mutex<EventMgr> = Mutex::new(EventMgr::new());
 
 // TODO: Figure out how to declare F as &dyn with a lifetime.
 
-pub struct EventChannel<T, F>
-where T: Debug+Sync, F: Fn(&T)+Sync
+pub struct EventChannel<'a, T>
+where T: Debug
 {
-    handler: Option<F>,
+    handlers: Vec<Mutex<&'a dyn EventHandler<T>>>,
     event_queue: Arc<Mutex<VecDeque<T>>>,
 }
 
-impl<T, F> EventChannel<T, F>
-    where T: Debug+Sync, F: Fn(&T)+Sync
+impl<'a, T> EventChannel<'a, T>
+where T: Debug
 {
-    pub fn new() -> EventChannel<T, F>
+    pub fn new() -> EventChannel<'a, T>
     {
-        EventChannel { handler: None, event_queue: Arc::new(Mutex::new(VecDeque::new())) }
+        EventChannel { handlers: Vec::new(), event_queue: Arc::new(Mutex::new(VecDeque::new())) }
     }
 
-    pub fn subscribe(&mut self, handler: F) 
+    pub fn subscribe(&mut self, handler: Mutex<&'a dyn EventHandler<T>>) 
     {
-        self.handler = Some(handler);
-        println!("Subscribe set handler.");
+        self.handlers.push(handler);
+        println!("Subscribe added handler.");
     }
 
     pub fn publish(&self, e: T) {
@@ -108,15 +112,15 @@ impl<T, F> EventChannel<T, F>
 
 }
 
-impl<T, F> EventChannelIf for EventChannel<T, F>
-where T: Debug+Sync+Send, F: Fn(&T)+Sync
+impl<'a, T> EventChannelIf for EventChannel<'a, T>
+where T: Debug
 {
     fn service_event(&self) 
     {
         let mut event_queue = self.event_queue.lock().unwrap();
         let data = event_queue.pop_front().unwrap();
         match &self.handler {
-            Some(f) => { f(&data); }
+            Some(handler) => { handler.on_event(&data); }
             None => { println!("No handler."); }
         }
     }

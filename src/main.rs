@@ -1,6 +1,6 @@
 mod event_mgr;
 
-use event_mgr::{EventMgr, EventChannel};
+use event_mgr::{EventMgr, EventChannel, EventHandler};
 
 #[derive(Debug)]
 struct EventData {
@@ -8,7 +8,8 @@ struct EventData {
 }
 
 struct System<'a> {
-    ch1: EventChannel<EventData, &'a dyn Fn(&EventData)>,
+    ch1: EventChannel<'a, EventData>,
+    handler1: Mutex<&'a dyn &EventData>,  // Fixme.
 }
 
 impl<'a> System<'a>
@@ -22,7 +23,7 @@ impl<'a> System<'a>
         };
 
         // Register a listener
-        sys.ch1.subscribe(&|d| { println!("In the callback: {}", d.data1); } );
+        sys.ch1.subscribe(&self );
 
         sys
     }
@@ -39,6 +40,14 @@ impl<'a> System<'a>
         println!("Polling.");
         EventMgr::poll();
         println!("Polling done.");
+    }
+}
+
+impl<'a> EventHandler<EventData> for System<'a> 
+{
+    fn on_event(&self, data: &T) 
+    {
+        println!("in System on_event()");
     }
 }
 
