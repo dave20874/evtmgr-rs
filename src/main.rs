@@ -1,7 +1,5 @@
 mod event_mgr;
 
-use std::sync::Arc;
-
 use event_mgr::{EventMgr, EventChannel};
 
 #[derive(Debug)]
@@ -10,19 +8,16 @@ struct EventData {
 }
 
 struct System<'a> {
-    mgr: Arc<EventMgr<'a>>,
-    ch1: EventChannel<'a, EventData, &'a dyn Fn(&EventData)>,
+    ch1: EventChannel<EventData, &'a dyn Fn(&EventData)>,
 }
 
 impl<'a> System<'a>
 {
     pub fn new() -> Self
     {
-        let mgr = Arc::new(EventMgr::new());
-        let mut ch1 = EventChannel::<EventData, &dyn Fn(&EventData)>::new(&mgr);
+        let mut ch1 = EventChannel::<EventData, &dyn Fn(&EventData)>::new();
 
         let mut sys = System {
-            mgr: mgr.clone(),
             ch1: ch1,
         };
 
@@ -42,7 +37,7 @@ impl<'a> System<'a>
     pub fn poll(&self)
     {
         println!("Polling.");
-        self.mgr.poll();
+        EventMgr::poll();
         println!("Polling done.");
     }
 }
