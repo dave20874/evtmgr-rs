@@ -1,29 +1,33 @@
 mod event_mgr;
 
 use event_mgr::{EventMgr, EventChannel, EventHandler};
+use lazy_static::lazy_static;
 
 #[derive(Debug)]
 struct EventData {
     data1: u32,
 }
 
-struct System<'a> {
-    ch1: EventChannel<'a, EventData>,
-    // handler1: Mutex<&'a dyn &EventData>,  // Fixme.
+lazy_static! {
+    static ref CH1: EventChannel<EventData> = EventChannel::new();
 }
 
-impl<'a> System<'a>
+struct System {
+    dummy: u32,
+}
+
+impl System
 {
     pub fn new() -> Self
     {
         let mut ch1 = EventChannel::<EventData>::new();
 
         let mut sys = System {
-            ch1: ch1,
+            dummy: 0,
         };
 
         // Register a listener
-        sys.ch1.subscribe(&sys);
+        CH1.subscribe(&sys);
 
         sys
     }
@@ -32,7 +36,7 @@ impl<'a> System<'a>
     {
         // Publish a message
         // let e = Box::new(EventData {data1: 69});
-        self.ch1.publish(EventData {data1: 69});
+        CH1.publish(EventData {data1: 69});
     }
 
     pub fn poll(&self)
@@ -43,7 +47,7 @@ impl<'a> System<'a>
     }
 }
 
-impl<'a> EventHandler<EventData> for System<'a> 
+impl EventHandler<EventData> for System
 {
     fn on_event(&self, data: &EventData) 
     {

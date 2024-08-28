@@ -4,7 +4,7 @@
 // TODO : Document how event sources register event channels.
 // TODO : Document how event handlers register callbacks for events
 
-use std::{collections::VecDeque, fmt::Debug, sync::{Arc, Mutex}};
+use std::{collections::VecDeque, fmt::Debug, sync::Mutex};
 use lazy_static::lazy_static;
 
 // TODO-DW : Eliminate 'static lifetime on channels managed by EventMgr.
@@ -78,22 +78,22 @@ lazy_static! {
 
 // TODO: Figure out how to declare F as &dyn with a lifetime.
 
-pub struct EventChannel<'a, T>
-where T: Debug+Sync
+pub struct EventChannel<T>
+where T: Debug+Sync+Send+'static
 {
-    handlers: Mutex<Vec<&'a dyn EventHandler<T>>>,
+    handlers: Mutex<Vec<&'static dyn EventHandler<T>>>,
     event_queue: Mutex<VecDeque<T>>,
 }
 
-impl<'a, T> EventChannel<'a, T>
-where T: Debug+Sync+Send
+impl<T> EventChannel<T>
+where T: Debug+Sync+Send+'static
 {
-    pub fn new() -> EventChannel<'a, T>
+    pub fn new() -> EventChannel<T>
     {
         EventChannel { handlers: Mutex::new(Vec::new()), event_queue: Mutex::new(VecDeque::new()) }
     }
 
-    pub fn subscribe(&self, handler: &'a dyn EventHandler<T>) 
+    pub fn subscribe(&self, handler: &'static dyn EventHandler<T>) 
     {
         let mut handler_list = self.handlers.lock().unwrap();
         handler_list.push(handler);
@@ -109,12 +109,12 @@ where T: Debug+Sync+Send
         event_queue.push_back(e);
 
         // tell manager to call us back.
-        EVENT_MGR.queue(self);
+        EVENT_MGR.queue(self); // Do Callbacks need to be Arc?
     }
 
 }
 
-impl<'a, T> EventChannelIf for EventChannel<'a, T>
+impl<T> EventChannelIf for EventChannel<T>
 where T: Debug+Sync+Send
 {
     fn service_event(&self) 
