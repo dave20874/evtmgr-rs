@@ -1,29 +1,52 @@
 mod event_mgr;
 
 
-use event_mgr::{EventMgr, EventChannel};
+use event_mgr::{EventChannel, EventHandler, EventMgr, EventRecord};
 
 struct EventData {
     data1: u32,
+}
+
+struct MyListener {
+    name: String,
+}
+
+impl MyListener {
+    fn new(name: &str) -> MyListener {
+        let l = MyListener { name: name.to_string() };
+
+        l
+    }
+}
+
+impl EventHandler<EventData> for MyListener {
+    fn handle(&self, data: &EventData) {
+        println!("MyListener, {}, received {}", self.name, data.data1);
+    }
 }
 
 fn main() {
     // Create an event manager
     let mgr = EventMgr::new();
 
-    // Get a reference to a channel
-    // (Creates it and registers with event manager if the first time.)
-    let for_pub = EventChannel::<EventData>::get(&mgr, "ch1");
+    // create a channel
+    let chan = EventChannel::<EventData>::new();
 
-    // Get a second reference to the channel
-    let for_sub = EventChannel::<EventData>::get(&mgr, "ch1");
+    // register some listeners for the channel
+    let listener1 = Box::new(MyListener::new("L1"));
+    let listener2 = Box::new(MyListener::new("L2"));
+    {
+        let chan = chan.lock().unwrap();
+        chan.subscribe(listener1);
+        chan.subscribe(listener2);
+    }
 
-    // Register a listener
-    for_sub.subscribe();
+    // post some events
+    mgr.post(EventRecord::<EventData>::new(EventData { data1: 1 }, chan.clone()));
+    mgr.post(EventRecord::<EventData>::new(EventData { data1: 2 }, chan.clone()));
 
-    // Publish a message
-    let e = EventData {data1: 69};
-    for_pub.publish(e);
+    // let event manager work
+    mgr.poll();
 
     println!("Did it work?");
 }
