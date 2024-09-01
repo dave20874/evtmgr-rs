@@ -25,7 +25,7 @@ pub struct EventRecord<T>
 
 impl<T> EventRecord<T>
 {
-    pub fn new(data: T, channel: Arc<Mutex<EventChannel<T>>>) -> Box<EventRecord<T>>
+    pub fn new(data: T, channel: &Arc<Mutex<EventChannel<T>>>) -> Box<EventRecord<T>>
     {
         Box::new(EventRecord {data, channel: channel.clone()} )
     }
@@ -62,7 +62,7 @@ impl<T> EventChannel<T>
         handlers.push(l);
     }
 
-    pub fn dispatch(&self, e: &T) {
+    fn dispatch(&self, e: &T) {
         let handlers = self.handlers.lock().unwrap();
         for handler in handlers.iter() {
             handler.handle(e);

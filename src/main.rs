@@ -13,9 +13,7 @@ struct MyListener {
 
 impl MyListener {
     fn new(name: &str) -> MyListener {
-        let l = MyListener { name: name.to_string() };
-
-        l
+        MyListener { name: name.to_string() }
     }
 }
 
@@ -42,10 +40,11 @@ fn main() {
     }
 
     // post some events
-    mgr.post(EventRecord::<EventData>::new(EventData { data1: 1 }, chan.clone()));
-    mgr.post(EventRecord::<EventData>::new(EventData { data1: 2 }, chan.clone()));
+    mgr.post(EventRecord::<EventData>::new(EventData { data1: 1 }, &chan));
+    mgr.post(EventRecord::<EventData>::new(EventData { data1: 2 }, &chan));
 
     // let event manager work
+    println!("Polling.");
     mgr.poll();
 
     println!("Did it work?");
