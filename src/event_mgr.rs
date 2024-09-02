@@ -20,15 +20,15 @@ pub trait EventDispatchIf : Send
 
 pub struct EventRecord<T>
 {
-    data: T,
+    data: Box<T>,
     channel: Arc<Mutex<EventChannel<T>>>,
 }
 
 impl<T> EventRecord<T>
 {
-    pub fn new(data: T, channel: &Arc<Mutex<EventChannel<T>>>) -> Box<EventRecord<T>>
+    pub fn new(data: Box<T>, channel: &Arc<Mutex<EventChannel<T>>>) -> Box<EventRecord<T>>
     {
-        Box::new(EventRecord {data, channel: channel.clone()} )
+        Box::new(EventRecord {data: data, channel: channel.clone()} )
     }
 }
 
@@ -72,6 +72,36 @@ where T: Send
         }
     }
 }
+
+pub struct WrappedEventChannel<'a, T>
+{
+    am_ec: Arc<Mutex<EventChannel<T>>>,
+    mgr: &'a EventMgr,
+}
+
+impl<'a, T> WrappedEventChannel<'a, T>
+where T: Send+'static
+{
+    pub fn new(mgr: &'a EventMgr) -> WrappedEventChannel<'a, T>
+    {
+        WrappedEventChannel {
+            am_ec: EventChannel::<T>::create(),
+            mgr: mgr,
+        }
+    }
+
+    pub fn post(&'a self, event_data: T) {
+        self.mgr.post(
+            EventRecord::new(Box::new(event_data), &self.am_ec.clone())
+        );
+    }
+
+    pub fn subscribe(&'a self, l: Box<dyn EventHandler<T>>) {
+        let chan = self.am_ec.lock().unwrap();
+
+        chan.subscribe(l);
+    }
+} 
 
 // EventMgr
 // The manager of events manages the event queue.
