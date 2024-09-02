@@ -33,14 +33,16 @@ fn main() {
     let t = thread::spawn(move || {
         println!("Started thread.");
         let mut now = SystemTime::now();
-        let end_time = now + Duration::new(2, 0);
+        let end_time = now + Duration::new(1, 0);
         let sleep_time = Duration::new(0, 1000000);  // 1ms
+        let mut count = 0;
         while now < end_time {
             thread_mgr.poll();
+            count += 1;
             sleep(sleep_time);
             now = SystemTime::now();
         }
-        println!("Thread ending.");
+        println!("Thread ending after {} sleeps.", count);
     });
 
     // create a channel
