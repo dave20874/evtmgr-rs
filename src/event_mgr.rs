@@ -7,12 +7,13 @@
 use std::{collections::VecDeque, marker::PhantomData, sync::{Arc, Mutex}};
 
 // A handler of events with event_data: T
-pub trait EventHandler<T>
+pub trait EventHandler<T> : Send
+where T : Send
 {
     fn handle(&self, data: &T);
 }
 
-pub trait EventDispatchIf
+pub trait EventDispatchIf : Send
 {
     fn dispatch(&self);
 }
@@ -32,6 +33,7 @@ impl<T> EventRecord<T>
 }
 
 impl<T> EventDispatchIf for EventRecord<T>
+where T : Send
 {
     fn dispatch(&self)
     {
@@ -50,8 +52,9 @@ pub struct EventChannel<T>
 
 
 impl<T> EventChannel<T>
+where T: Send
 {
-    pub fn new() -> Arc<Mutex<EventChannel<T>>> {
+    pub fn create() -> Arc<Mutex<EventChannel<T>>> {
         // For now, just create one and return the reference so we can compile
         Arc::new(Mutex::new(EventChannel::<T> {handlers: Mutex::new(Vec::new()), phantom: PhantomData } ))
     }
@@ -72,7 +75,7 @@ impl<T> EventChannel<T>
 
 // EventMgr
 // The manager of events manages the event queue.
-pub struct EventMgr 
+pub struct EventMgr
 {
     event_queue: Mutex<VecDeque<Box<dyn EventDispatchIf>>>,
 }
