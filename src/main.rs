@@ -3,7 +3,7 @@ mod event_mgr;
 
 use std::{sync::Arc, thread::{self, sleep}, time::{Duration, SystemTime}};
 
-use event_mgr::{EventChannel, EventHandler, EventMgr, EventRecord, WrappedEventChannel};
+use event_mgr::{EventHandler, EventMgr, EventChannel};
 
 struct EventData {
     data1: u32,
@@ -46,12 +46,13 @@ fn main() {
     });
 
     // create a channel
-    let chan = EventChannel::<EventData>::create();
-    let chan2 = WrappedEventChannel::<EventData>::new(&mgr);
+    let chan = EventChannel::<EventData>::new(&mgr);
+    let chan2 = EventChannel::<EventData>::new(&mgr);
 
     // register some listeners for the channel
     let listener1 = Box::new(MyListener::new("L1"));
     let listener2 = Box::new(MyListener::new("L2"));
+    /*
     // let listener3 = Box::new(MyListener::new("L3"));
     {
         let chan = chan.lock().unwrap();
@@ -59,13 +60,19 @@ fn main() {
         chan.subscribe(listener1);
         chan.subscribe(listener2);
     }
+    */
+    chan.subscribe(listener1);
+    chan.subscribe(listener2);
     chan2.subscribe(Box::new(MyListener::new("L3")));
 
     // post some events
     println!("Posting events.");
-
+/*
     mgr.post(EventRecord::<EventData>::new(Box::new(EventData { data1: 1 }), &chan));
     mgr.post(EventRecord::<EventData>::new(Box::new(EventData { data1: 2 }), &chan));
+    */
+    chan.post(EventData { data1: 1 });
+    chan.post(EventData { data1: 2 });
     chan2.post(EventData{ data1: 3 });
 
     // let event manager work
