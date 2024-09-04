@@ -1,10 +1,7 @@
 // A Event Management System for Rust
 
-// TODO : Document how new event types are defined.
-// TODO : Document how event sources register event channels.
-// TODO : Document how event handlers register callbacks for events
-
 use std::{collections::VecDeque, sync::{Arc, Mutex}};
+use lazy_static::lazy_static;
 
 // A handler of events with event_data: T
 pub trait EventHandler<T> : Send
@@ -22,8 +19,6 @@ pub struct EventRecord<T>
 {
     data: Box<T>,
     channel: Arc<EventChannel<T>>,
-    // TODO: remove
-    // handlers: Arc<Mutex<Vec<Box<dyn EventHandler<T>>>>>, // remove Arc<Mutex<EventChannelHandlers<T>>>,
 }
 
 impl<T> EventRecord<T>
@@ -48,34 +43,29 @@ where T : Send+'static
 pub struct EventChannel<T>
 {
     handlers: Mutex<Vec<Box<dyn EventHandler<T>>>>,
-    mgr: Arc<EventMgr>,  // TODO: make EventMgr static?
 }
 
 impl<T> EventChannel<T>
 where T: Send+'static
 {
-    // TODO: experiment, create as Arc<Mutex<Self>>
-    pub fn new(mgr: &Arc<EventMgr>) -> Arc<EventChannel<T>>
+    pub fn new() -> Arc<EventChannel<T>>
     {
         Arc::new(
-            EventChannel { handlers: Mutex::new(Vec::new()), mgr: mgr.clone() }
+            EventChannel { handlers: Mutex::new(Vec::new()) }
         )
     }
 
-    // TODO: experiment with &'a self: Arc<Mutex<Self>>
     pub fn post(self: &Arc<Self>, event_data: T) {
-        self.mgr.post(
+        EVENT_MGR.post(
             EventRecord::new(Box::new(event_data), self));
     }
 
-    // TODO: experiment with &'a self: Arc<Mutex<Self>>
     pub fn subscribe(self: &Arc<Self>, l: Box<dyn EventHandler<T>>) {
         let mut handlers = self.handlers.lock().unwrap();
 
         handlers.push(l);
     }
 
-    // TODO: if self: Arc<Mutex<Self>> works out, put (dispatch?) logic here?
     fn dispatch(self: &Arc<Self>, event_data: &T) {
         let handlers = self.handlers.lock().unwrap();
         for handler in handlers.iter() {
@@ -128,3 +118,6 @@ impl EventMgr
 
 }
 
+lazy_static! {
+    pub static ref EVENT_MGR: EventMgr = EventMgr::new();
+}

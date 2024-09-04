@@ -1,14 +1,16 @@
 mod event_mgr;
 
 
-use std::{sync::Arc, thread::{self, sleep}, time::{Duration, SystemTime}};
+use std::{thread::{self, sleep}, time::{Duration, SystemTime}};
 
-use event_mgr::{EventHandler, EventMgr, EventChannel};
+use event_mgr::{EventChannel, EventHandler, EVENT_MGR};
 
+// Define my event type.
 struct EventData {
     data1: u32,
 }
 
+// Define my listener
 struct MyListener {
     name: String,
 }
@@ -19,6 +21,7 @@ impl MyListener {
     }
 }
 
+// Define my Event Handler
 impl EventHandler<EventData> for MyListener {
     fn handle(&self, data: &EventData) {
         println!("MyListener, {}, received {}", self.name, data.data1);
@@ -26,10 +29,7 @@ impl EventHandler<EventData> for MyListener {
 }
 
 fn main() {
-    // Create an event manager
-    let mgr = Arc::new(EventMgr::new());
-    let thread_mgr = mgr.clone();
-
+    // TODO: have an event manager thread in event_mgr.rs.
     let t = thread::spawn(move || {
         println!("Started thread.");
         let mut now = SystemTime::now();
@@ -37,7 +37,7 @@ fn main() {
         let sleep_time = Duration::new(0, 1000000);  // 1ms
         let mut count = 0;
         while now < end_time {
-            thread_mgr.poll();
+            EVENT_MGR.poll();
             count += 1;
             sleep(sleep_time);
             now = SystemTime::now();
@@ -45,41 +45,28 @@ fn main() {
         println!("Thread ending after {} sleeps.", count);
     });
 
-    // create a channel
-    let chan = EventChannel::<EventData>::new(&mgr);
-    let chan2 = EventChannel::<EventData>::new(&mgr);
+    // create some  channels
+    let chan = EventChannel::<EventData>::new();
+    let chan2 = EventChannel::<EventData>::new();
 
     // register some listeners for the channel
     let listener1 = Box::new(MyListener::new("L1"));
     let listener2 = Box::new(MyListener::new("L2"));
-    /*
-    // let listener3 = Box::new(MyListener::new("L3"));
-    {
-        let chan = chan.lock().unwrap();
-        println!("Subscribing.");
-        chan.subscribe(listener1);
-        chan.subscribe(listener2);
-    }
-    */
+
     chan.subscribe(listener1);
     chan.subscribe(listener2);
     chan2.subscribe(Box::new(MyListener::new("L3")));
 
     // post some events
     println!("Posting events.");
-/*
-    mgr.post(EventRecord::<EventData>::new(Box::new(EventData { data1: 1 }), &chan));
-    mgr.post(EventRecord::<EventData>::new(Box::new(EventData { data1: 2 }), &chan));
-    */
-    chan.post(EventData { data1: 1 });
-    chan.post(EventData { data1: 2 });
-    chan2.post(EventData{ data1: 3 });
 
-    // let event manager work
-    // println!("Polling.");
-    // mgr.poll();
+    let pause = Duration::new(0, 10000);
+    for n in 0..3 {
+        chan.post(EventData { data1: n });
+        chan2.post(EventData{ data1: n });
+        sleep(pause)
+    }
 
-    // println!("Did it work?");
     println!("Joining with mgr thread.");
     t.join().unwrap();
     println!("All done.");
