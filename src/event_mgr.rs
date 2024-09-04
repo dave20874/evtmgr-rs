@@ -21,58 +21,66 @@ pub trait EventDispatchIf : Send
 pub struct EventRecord<T>
 {
     data: Box<T>,
-    handlers: Arc<Mutex<Vec<Box<dyn EventHandler<T>>>>>, // remove Arc<Mutex<EventChannelHandlers<T>>>,
+    channel: Arc<EventChannel<T>>,
+    // TODO: remove
+    // handlers: Arc<Mutex<Vec<Box<dyn EventHandler<T>>>>>, // remove Arc<Mutex<EventChannelHandlers<T>>>,
 }
 
 impl<T> EventRecord<T>
 {
-    fn new(data: Box<T>, handlers: &Arc<Mutex<Vec<Box<dyn EventHandler<T>>>>>) -> Box<EventRecord<T>>
+    fn new(data: Box<T>, channel: &Arc<EventChannel<T>>) -> Box<EventRecord<T>>
     {
-        Box::new(EventRecord {data: data, handlers: handlers.clone()} )
+        Box::new(EventRecord {data, channel: channel.clone()} )
     }
 }
 
 impl<T> EventDispatchIf for EventRecord<T>
-where T : Send
+where T : Send+'static
 {
     fn dispatch(&self)
     {
-        let handlers = self.handlers.lock().unwrap();
-        for handler in handlers.iter() {
-            handler.handle(&self.data);
-        }
+        self.channel.dispatch(&self.data);
     }
 }
 
 // EventChannel
 // An EventChannel provides the registration mechanism for listeners to receive events
-pub struct EventChannel<'a, T>
+pub struct EventChannel<T>
 {
-    handlers: Arc<Mutex<Vec<Box<dyn EventHandler<T>>>>>,
-    mgr: &'a EventMgr,
+    handlers: Mutex<Vec<Box<dyn EventHandler<T>>>>,
+    mgr: Arc<EventMgr>,  // TODO: make EventMgr static?
 }
 
-impl<'a, T> EventChannel<'a, T>
+impl<T> EventChannel<T>
 where T: Send+'static
 {
-    pub fn new(mgr: &'a EventMgr) -> EventChannel<'a, T>
+    // TODO: experiment, create as Arc<Mutex<Self>>
+    pub fn new(mgr: &Arc<EventMgr>) -> Arc<EventChannel<T>>
     {
-        EventChannel {
-            handlers: Arc::new(Mutex::new(Vec::new())),
-            mgr: mgr,
-        }
+        Arc::new(
+            EventChannel { handlers: Mutex::new(Vec::new()), mgr: mgr.clone() }
+        )
     }
 
-    pub fn post(&'a self, event_data: T) {
+    // TODO: experiment with &'a self: Arc<Mutex<Self>>
+    pub fn post(self: &Arc<Self>, event_data: T) {
         self.mgr.post(
-            EventRecord::new(Box::new(event_data), &self.handlers)
-        );
+            EventRecord::new(Box::new(event_data), self));
     }
 
-    pub fn subscribe(&'a self, l: Box<dyn EventHandler<T>>) {
+    // TODO: experiment with &'a self: Arc<Mutex<Self>>
+    pub fn subscribe(self: &Arc<Self>, l: Box<dyn EventHandler<T>>) {
         let mut handlers = self.handlers.lock().unwrap();
 
         handlers.push(l);
+    }
+
+    // TODO: if self: Arc<Mutex<Self>> works out, put (dispatch?) logic here?
+    fn dispatch(self: &Arc<Self>, event_data: &T) {
+        let handlers = self.handlers.lock().unwrap();
+        for handler in handlers.iter() {
+            handler.handle(event_data);
+        }
     }
 } 
 
