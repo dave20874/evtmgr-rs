@@ -1,9 +1,8 @@
 mod event_mgr;
 
+use std::{thread::sleep, time::Duration};
 
-use std::{thread::{self, sleep}, time::{Duration, SystemTime}};
-
-use event_mgr::{EventChannel, EventHandler, EVENT_MGR};
+use event_mgr::{EventChannel, EventHandler};
 
 // Define my event type.
 struct EventData {
@@ -29,22 +28,6 @@ impl EventHandler<EventData> for MyListener {
 }
 
 fn main() {
-    // TODO: have an event manager thread in event_mgr.rs.
-    let t = thread::spawn(move || {
-        println!("Started thread.");
-        let mut now = SystemTime::now();
-        let end_time = now + Duration::new(1, 0);
-        let sleep_time = Duration::new(0, 1000000);  // 1ms
-        let mut count = 0;
-        while now < end_time {
-            EVENT_MGR.poll();
-            count += 1;
-            sleep(sleep_time);
-            now = SystemTime::now();
-        }
-        println!("Thread ending after {} sleeps.", count);
-    });
-
     // create some  channels
     let chan = EventChannel::<EventData>::new();
     let chan2 = EventChannel::<EventData>::new();
@@ -56,6 +39,9 @@ fn main() {
     chan.subscribe(listener1);
     chan.subscribe(listener2);
     chan2.subscribe(Box::new(MyListener::new("L3")));
+
+    // Start event manager thread
+    let t = event_mgr::run_thread();
 
     // post some events
     println!("Posting events.");

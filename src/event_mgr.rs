@@ -1,6 +1,6 @@
 // A Event Management System for Rust
 
-use std::{collections::VecDeque, sync::{Arc, Mutex}};
+use std::{collections::VecDeque, sync::{Arc, Mutex}, thread::{self, sleep, JoinHandle}, time::{Duration, SystemTime}};
 use lazy_static::lazy_static;
 
 // A handler of events with event_data: T
@@ -56,8 +56,12 @@ where T: Send+'static
     }
 
     pub fn post(self: &Arc<Self>, event_data: T) {
-        EVENT_MGR.post(
-            EventRecord::new(Box::new(event_data), self));
+        {
+            let mut mgr = EVENT_MGR.lock().unwrap();
+            mgr.post(
+                EventRecord::new(Box::new(event_data), self)
+            );
+        }
     }
 
     pub fn subscribe(self: &Arc<Self>, l: Box<dyn EventHandler<T>>) {
@@ -78,7 +82,9 @@ where T: Send+'static
 // The manager of events manages the event queue.
 pub struct EventMgr
 {
-    event_queue: Mutex<VecDeque<Box<dyn EventDispatchIf>>>,
+    event_queue: VecDeque<Box<dyn EventDispatchIf>>,
+    events: usize,
+    shutting_down: bool,
 }
 
 impl EventMgr
@@ -86,27 +92,29 @@ impl EventMgr
     // private function to create the singleton event manager in lazy_static, above.
     pub fn new() -> EventMgr {
         EventMgr {
-            event_queue: Mutex::new(VecDeque::new()),
+            event_queue: VecDeque::new(),
+            events: 0,
+            shutting_down: false,
         }
     }
 
-    pub fn post(&self, event_record: Box<dyn EventDispatchIf>) {
-        let mut queue = self.event_queue.lock().unwrap();
-
-        queue.push_back(event_record);
+    pub fn post(&mut self, event_record: Box<dyn EventDispatchIf>) {
+        if !self.shutting_down {
+            self.event_queue.push_back(event_record);
+        }
     }
 
-    pub fn poll(&self) {
+    fn poll(&mut self) {
         let mut run = true;
         while run {
             let handler_opt = {
-                let mut queue = self.event_queue.lock().unwrap();
-                queue.pop_front()
+                self.event_queue.pop_front()
             };
 
             match handler_opt {
                 Some(h) => {
                     println!("Dispatching.");
+                    self.events += 1;
                     h.dispatch();
                 }
                 None => {
@@ -118,6 +126,35 @@ impl EventMgr
 
 }
 
+pub fn poll_loop() {
+    println!("Started thread.");
+    let mut now = SystemTime::now();
+    let end_time = now + Duration::new(1, 0);
+    let sleep_time = Duration::new(0, 1_000_000);  // 1ms
+    let mut count = 0;
+    while now < end_time {
+        {
+            let mut mgr = EVENT_MGR.lock().unwrap();
+            mgr.poll();
+        }
+        count += 1;
+        sleep(sleep_time);
+        now = SystemTime::now();
+    }
+    {
+        let mgr = EVENT_MGR.lock().unwrap();
+        println!("Thread ending after {} sleeps, {} events", count, mgr.events);
+    }
+}
+
+pub fn run_thread() -> JoinHandle<()> {
+    thread::spawn(
+        move || {
+            poll_loop();
+        }
+    )
+}
+
 lazy_static! {
-    pub static ref EVENT_MGR: EventMgr = EventMgr::new();
+    static ref EVENT_MGR: Mutex<EventMgr> = Mutex::new(EventMgr::new());
 }
