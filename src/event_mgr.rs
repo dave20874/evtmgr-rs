@@ -113,7 +113,7 @@ impl EventMgr
 
             match handler_opt {
                 Some(h) => {
-                    println!("Dispatching.");
+                    // println!("Dispatching.");
                     self.events += 1;
                     h.dispatch();
                 }
@@ -130,7 +130,7 @@ pub fn poll_loop() {
     println!("Started thread.");
     let mut now = SystemTime::now();
     let end_time = now + Duration::new(1, 0);
-    let sleep_time = Duration::new(0, 1_000_000);  // 1ms
+    let sleep_time = Duration::new(0, 1_000);  // 1us
     let mut count = 0;
     while now < end_time {
         {
