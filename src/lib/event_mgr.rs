@@ -127,31 +127,33 @@ impl EventMgr
 }
 
 pub fn poll_loop() {
-    println!("Started thread.");
+
     let mut now = SystemTime::now();
     let end_time = now + Duration::new(1, 0);
-    let sleep_time = Duration::new(0, 1_000);  // 1us
-    let mut count = 0;
+    let sleep_time = Duration::new(0, 10_000_000);  // 10 ms
+
     while now < end_time {
         {
             let mut mgr = EVENT_MGR.lock().unwrap();
             mgr.poll();
         }
-        count += 1;
         sleep(sleep_time);
         now = SystemTime::now();
     }
-    {
-        let mgr = EVENT_MGR.lock().unwrap();
-        println!("Thread ending after {} sleeps, {} events", count, mgr.events);
-    }
+
 }
 
 pub fn run_thread() -> JoinHandle<()> {
     thread::spawn(
         move || {
+            println!("Started thread.");
             poll_loop();
+            {
+                let mgr = EVENT_MGR.lock().unwrap();
+                println!("Thread ending after {} events", mgr.events);
+            }
         }
+
     )
 }
 

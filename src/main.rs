@@ -1,5 +1,3 @@
-mod event_mgr;
-
 use std::{thread::sleep, time::Duration};
 
 use event_mgr::{EventChannel, EventHandler};

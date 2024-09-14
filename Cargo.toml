@@ -5,3 +5,11 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.5.0"
+
+[[bin]]
+name = "event_mgr"
+path = "src/main.rs"
+
+[lib]
+name = "event_mgr"
+path = "src/lib/lib.rs"
